@@ -1,6 +1,3 @@
-Vytvořeno: 2026-10-07
-Upraveno: 2026-10-07
-
 # key-router – CLIProxyAPI plugin
 
 A plugin for [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) (v8) that picks the upstream account (Claude, Codex, Antigravity, Gemini…) based on the **client API key**. It is meant for a proxy shared by several people: everyone uses their own subscription first and only falls back to accounts other people have shared with them once their own limits run out.
