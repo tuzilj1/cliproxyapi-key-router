@@ -1,71 +1,71 @@
 Vytvořeno: 2026-10-07
 Upraveno: 2026-10-07
 
-# key-router – plugin pro CLIProxyAPI
+# key-router – CLIProxyAPI plugin
 
-Plugin pro [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) (v8), který vybírá upstream účet (Claude, Codex, Antigravity, Gemini…) podle **klientského API klíče**. Hodí se, když proxy sdílí víc lidí: každý jede primárně na svém předplatném a teprve po vyčerpání limitů na účtech, ke kterým mu ostatní dali přístup.
+A plugin for [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) (v8) that picks the upstream account (Claude, Codex, Antigravity, Gemini…) based on the **client API key**. It is meant for a proxy shared by several people: everyone uses their own subscription first and only falls back to accounts other people have shared with them once their own limits run out.
 
-Obsahuje i **grafickou konfiguraci** přímo v management panelu CLIProxyAPI.
+It also ships a **configuration page** inside the CLIProxyAPI management panel.
 
-## Jak to funguje
+## How it works
 
-Každý uživatel má jeden nebo víc klientských klíčů (`access.api-keys`) a u každého přihlášeného účtu jednu ze tří rolí:
+Each user has one or more client keys (from `access.api-keys`) and one of three roles for every logged-in account:
 
-| Role | Chování |
+| Role | Behaviour |
 |---|---|
-| **Primary** | Používá se jako první. Při více primárních účtech vyhraje vyšší `priority`, pak abecedně podle ID. |
-| **Access** | Použije se, až když žádný primární účet není dostupný (vyčerpaný limit / cooldown, chyba, vypnutý účet). |
-| **No access** | Pro daného uživatele se nepoužije nikdy. |
+| **Primary** | Used first. With several primary accounts, the higher `priority` wins, then the auth ID in alphabetical order. |
+| **Access** | Used only when no primary account is available (quota exhausted / cooldown, error, disabled account). |
+| **No access** | Never used for this user. |
 
-Když pro uživatele není dostupný žádný Primary ani Access účet, plugin dotaz odmítne chybou
+When neither a primary nor an access account is available, the plugin rejects the request with
 `auth_unavailable: key-router: no primary or access account of user "…" is available for model …`.
 
-Dotazy s klíčem, který není přiřazený žádnému uživateli, jdou přes výchozí routování CLIProxyAPI (`routing.strategy`).
+Requests with a key that is not assigned to any user go through the built-in CLIProxyAPI routing (`routing.strategy`).
 
-Přepnutí na Access účet nastane ve chvíli, kdy CLIProxyAPI označí primární účet za nedostupný. Typicky po odpovědi poskytovatele o vyčerpaném limitu (429), kdy se účet dostane do cooldownu. Plugin limity dopředu nepředvídá.
+The switch to an access account happens when CLIProxyAPI marks the primary account as unavailable. This is typically after the provider answers with a quota error (429) and the account enters cooldown. The plugin does not predict limits in advance.
 
-### Identifikace uživatele
+### Identifying the user
 
-CLIProxyAPI předává scheduler pluginům metadata `caller_scope`, tj. hash klientského klíče, který prošel ověřením. Funguje tak pro `Authorization: Bearer`, `x-api-key`, `x-goog-api-key` i `?key=`. Jako záloha se čtou hlavičky požadavku.
+CLIProxyAPI passes `caller_scope` metadata to scheduler plugins. It is a hash of the client key that passed authentication, so identification works for `Authorization: Bearer`, `x-api-key`, `x-goog-api-key` and `?key=`. Request headers are used as a fallback.
 
-### Pravidla účtů
+### Account rules
 
-Konfigurační stránka ukládá u každého účtu pravidlo `poskytovatel:e-mail`, např. `claude:jan@example.com`:
+The configuration page stores a `provider:e-mail` rule for each account, e.g. `claude:jane@example.com`:
 
-- poskytovatel účtu se musí shodovat,
-- název auth souboru musí obsahovat e-mail na hranici tokenu (`a@x.cz` nesedí na `ba@x.cz`),
-- pravidlo přežije odhlášení a nové přihlášení účtu (CLIProxyAPI pak může vytvořit soubor s jiným náhodným prefixem, např. `claude-8f425b23-…`),
-- účty bez e-mailu se ukládají názvem auth souboru.
+- the account provider must match,
+- the auth file name must contain the e-mail at a token boundary (`a@x.com` does not match `ba@x.com`),
+- the rule survives logging the account out and in again (CLIProxyAPI may then create a file with a different random prefix, e.g. `claude-8f425b23-…`),
+- accounts without an e-mail are stored by their auth file name.
 
-Pravidlo bez dvojtečky je podřetězec názvu auth souboru nebo poznámky (`note`) účtu (starší formát). Stránka ho při načtení převede na pravidla pro jednotlivé účty.
+A rule without a colon is a substring of the auth file name or of the account `note` (the older format). The page converts such rules to per-account rules when it loads.
 
-## Grafická konfigurace
+## Configuration page
 
-Plugin přidává do management panelu položku menu **Key router** (stránka `/v0/resource/plugins/key-router/config`, zdroj `ui.html` je vložený přímo v `.so`). Stránka umí:
+The plugin adds a **Key router** menu item to the management panel. The page is served at `/v0/resource/plugins/key-router/config`, and its source, `ui.html`, is embedded in the `.so`. On the page you can:
 
-- přidat, přejmenovat a odebrat uživatele,
-- přiřadit existující klientský klíč nebo vygenerovat nový (při uložení se přidá i do `access.api-keys`),
-- nastavit u každého přihlášeného účtu roli Primary / Access / No access,
-- zapnout nebo vypnout plugin a debug log,
-- zobrazit přehled účtů a rolí všech uživatelů.
+- add, rename and remove users,
+- assign an existing client key or generate a new one (on save, a new key is also added to `access.api-keys`),
+- set the Primary / Access / No access role of every logged-in account,
+- enable or disable the plugin and its debug log,
+- see an overview of all accounts and every user's role.
 
-Ukládá přes `PUT /v0/management/plugins/key-router/config` a CLIProxyAPI plugin hned přenačte.
+Changes are saved through `PUT /v0/management/plugins/key-router/config`, and CLIProxyAPI reloads the plugin right away.
 
-CLIProxyAPI servíruje stránky pluginů bez ověření a přihlášení z panelu jim nepředává. Stránka proto žádná data neobsahuje: při prvním otevření si řekne o **management klíč**, uloží ho v prohlížeči a vše načítá z management API. Pozor: CLIProxyAPI po 5 neúspěšných pokusech o management klíč zablokuje IP na 30 minut (ban se drží jen v paměti, zruší ho restart).
+CLIProxyAPI serves plugin pages without authentication and does not pass the panel login to them. The page therefore contains no data itself. On first use it asks for the **management key**, remembers it in the browser and loads everything from the management API. Note: after 5 failed management key attempts, CLIProxyAPI blocks the IP for 30 minutes. The ban is kept in memory only, so a restart clears it.
 
-Nově přihlášený účet má u všech uživatelů „No access“, dokud mu roli nenastavíš.
+A newly logged-in account has "No access" for every user until you assign it a role.
 
-## Instalace
+## Installation
 
-1. **Sestavení** (potřebuje Docker; výstup `out/key-router.so` pro linux/amd64):
+1. **Build** (requires Docker; produces `out/key-router.so` for linux/amd64):
 
    ```sh
    CPA_VERSION=v8.0.17 ./build.sh test
    ```
 
-   `build.sh` kompiluje proti zdrojákům CLIProxyAPI v sousední složce `../CLIProxyAPI` (viz `replace` v `go.mod`). Když chybí, naklonuje do ní tag `CPA_VERSION`. Verze musí odpovídat nasazenému CLIProxyAPI. Build probíhá v `golang:1.26-bookworm`, tedy se stejnou glibc jako oficiální image (`debian:bookworm`).
+   `build.sh` compiles against the CLIProxyAPI source in the sibling directory `../CLIProxyAPI` (see the `replace` directive in `go.mod`). If the directory is missing, it clones the `CPA_VERSION` tag there. The version must match the CLIProxyAPI you run. The build runs in `golang:1.26-bookworm`, so it links against the same glibc as the official image (`debian:bookworm`).
 
-2. **Nasazení:** zkopíruj `out/key-router.so` do adresáře pluginů CLIProxyAPI (v oficiálním docker-compose `./plugins` → `/CLIProxyAPI/plugins`) a v `config.yaml` zapni pluginy:
+2. **Deploy:** copy `out/key-router.so` into the CLIProxyAPI plugin directory (`./plugins` → `/CLIProxyAPI/plugins` in the official docker-compose setup) and enable plugins in `config.yaml`:
 
    ```yaml
    plugins:
@@ -75,30 +75,34 @@ Nově přihlášený účet má u všech uživatelů „No access“, dokud mu r
            key-router:
                enabled: true
                priority: 1
-               debug: false          # true = logovat každé rozhodnutí do stderr (docker logs), bez klíčů
+               debug: false          # true = log every routing decision to stderr (docker logs), keys are never logged
                users:
-                   - name: jan
+                   - name: jane
                      api-keys: ["sk-…"]
-                     primary: ["claude:jan@example.com", "antigravity:jan@example.com"]
-                     access: ["claude:petr@example.com"]
-                   - name: petr
+                     primary: ["claude:jane@example.com", "antigravity:jane@example.com"]
+                     access: ["claude:john@example.com"]
+                   - name: john
                      api-keys: ["sk-…"]
-                     primary: ["claude:petr@example.com"]
-                     access: ["antigravity:jan@example.com"]
+                     primary: ["claude:john@example.com"]
+                     access: ["antigravity:jane@example.com"]
    ```
 
-   Klíče musí být zároveň v `access.api-keys`. Jeden klíč nesmí patřit dvěma uživatelům (konfigurace se odmítne).
+   The keys must also be listed in `access.api-keys`. A key cannot belong to two users; such a configuration is rejected.
 
-3. Restartuj CLIProxyAPI a v logu zkontroluj `pluginhost: plugin loaded plugin_id=key-router` bez varování `invalid metadata`. Uživatele a role pak jde spravovat na stránce **Key router** v panelu.
+3. Restart CLIProxyAPI and check the log for `pluginhost: plugin loaded plugin_id=key-router` without an `invalid metadata` warning. Users and roles can then be managed on the **Key router** page in the panel.
 
-## Kompatibilita
+## Compatibility
 
-- Sestaveno a otestováno proti CLIProxyAPI **v8.0.17** (plugin ABI 1, RPC schema 6).
-- Oficiální image má `pull_policy: always`, takže se při restartu může aktualizovat. Po aktualizaci zkontroluj načtení pluginu v logu. Při změně `pluginabi.ABIVersion` / `SchemaVersion` plugin sestav znovu proti nové verzi (`CPA_VERSION=… ./build.sh`, předtím smaž `../CLIProxyAPI`).
-- Konfigurace ve formátu v0.2 (jen `auths`, bez `primary`/`access`) dál funguje: `auths` = primary, jinak výchozí routování.
+- Built and tested against CLIProxyAPI **v8.0.17** (plugin ABI 1, RPC schema 6).
+- The official image uses `pull_policy: always`, so it may update on restart. After an update, check that the plugin still loads. If `pluginabi.ABIVersion` or `SchemaVersion` changes, rebuild against the new version: delete `../CLIProxyAPI`, then run `CPA_VERSION=… ./build.sh`.
+- Configuration in the v0.2 format (only `auths`, without `primary`/`access`) still works: `auths` act as primary accounts, otherwise the built-in routing applies.
 
-## Vývoj
+## Development
 
-- `main.go`: C ABI plugin (scheduler + management resource), routování a pravidla.
-- `ui.html`: konfigurační stránka, bez závislostí.
-- `router_test.go`: testy routování, pravidel a servírování stránky (`./build.sh test`).
+- `main.go`: the C ABI plugin (scheduler and management resource), routing and rules.
+- `ui.html`: the configuration page, no dependencies.
+- `router_test.go`: tests for routing, rules and page serving (`./build.sh test`).
+
+## License
+
+[MIT](LICENSE)
