@@ -1,0 +1,436 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Key router</title>
+<style>
+:root {
+  --bg: #f7f7f8; --panel: #ffffff; --text: #1d1d20; --muted: #6b6b73; --border: #e2e2e6;
+  --accent: #2f6fed; --accent-text: #ffffff; --ok: #1f8a4c; --warn: #b26a00; --err: #c62828;
+  --chip: #eef1f6; --input: #ffffff;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #141416; --panel: #1d1d21; --text: #ececf0; --muted: #9a9aa3; --border: #303036;
+    --accent: #5b8cff; --accent-text: #0b0b0d; --ok: #4cc27f; --warn: #e0a040; --err: #ef6b6b;
+    --chip: #2a2a30; --input: #16161a;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 1040px; margin: 0 auto; padding: 20px 16px 96px; }
+h1 { font-size: 20px; margin: 0 0 4px; }
+h2 { font-size: 15px; margin: 0 0 12px; }
+p.lead { color: var(--muted); margin: 0 0 20px; }
+section.card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.spread { justify-content: space-between; }
+input[type=text], input[type=password], select {
+  background: var(--input); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; font: inherit; min-width: 0;
+}
+input.name { font-weight: 600; font-size: 15px; width: 220px; }
+button { font: inherit; border-radius: 6px; border: 1px solid var(--border); background: var(--panel); color: var(--text); padding: 6px 12px; cursor: pointer; }
+button:hover { border-color: var(--accent); }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); font-weight: 600; }
+button.danger { color: var(--err); }
+button.link { border: none; background: none; padding: 2px 4px; color: var(--muted); }
+button.link:hover { color: var(--accent); }
+button:disabled { opacity: .5; cursor: default; }
+.chip { display: inline-flex; align-items: center; gap: 4px; background: var(--chip); border-radius: 999px; padding: 2px 4px 2px 10px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; }
+.badge { display: inline-block; border-radius: 4px; padding: 0 6px; font-size: 12px; background: var(--chip); color: var(--muted); }
+.status-ok { color: var(--ok); } .status-warn { color: var(--warn); } .status-err { color: var(--err); }
+.muted { color: var(--muted); }
+.label { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 14px 0 6px; }
+.accounts { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 6px; }
+.account { display: flex; gap: 8px; align-items: flex-start; border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; cursor: pointer; }
+.account input { margin-top: 3px; }
+.account .email { font-weight: 500; word-break: break-all; }
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+th { font-size: 12px; color: var(--muted); font-weight: 500; }
+.table-wrap { overflow-x: auto; }
+.savebar { position: fixed; left: 0; right: 0; bottom: 0; background: var(--panel); border-top: 1px solid var(--border); padding: 10px 16px; }
+.savebar .inner { max-width: 1040px; margin: 0 auto; display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+#message { min-height: 1.4em; }
+.hidden { display: none !important; }
+.account { cursor: default; flex-direction: column; gap: 6px; }
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+.seg label { padding: 3px 10px; font-size: 12.5px; cursor: pointer; border-left: 1px solid var(--border); color: var(--muted); }
+.seg label:first-child { border-left: none; }
+.seg input { display: none; }
+.seg label.on-primary { background: var(--accent); color: var(--accent-text); }
+.seg label.on-access { background: var(--chip); color: var(--text); font-weight: 600; }
+.seg label.on-none { color: var(--text); }
+.role-primary { color: var(--accent); font-weight: 600; }
+.role-access { color: var(--text); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Key router</h1>
+  <p class="lead">Each user's requests use their <b>primary</b> accounts first. When no primary account is available (quota exhausted, cooling down, error, disabled), the accounts the user has <b>access</b> to are used. Other accounts are never used for that user; if nothing allowed is available, the request fails.</p>
+
+  <section class="card" id="login">
+    <h2>Management key</h2>
+    <form class="row" id="loginForm">
+      <input type="password" id="mgmtKey" placeholder="Management key" autocomplete="current-password" style="flex:1; min-width:220px">
+      <button class="primary" type="submit">Connect</button>
+    </form>
+    <p class="muted" id="loginError"></p>
+  </section>
+
+  <div id="app" class="hidden">
+    <section class="card">
+      <div class="row spread">
+        <h2 style="margin:0">Settings</h2>
+        <button class="link" id="logout" type="button">Forget management key</button>
+      </div>
+      <div class="row" style="margin-top:10px; gap:20px">
+        <label class="row"><input type="checkbox" id="enabled"> Plugin enabled</label>
+        <label class="row"><input type="checkbox" id="debug"> Log routing decisions (docker logs)</label>
+      </div>
+    </section>
+
+    <div id="users"></div>
+    <button type="button" id="addUser">+ Add user</button>
+
+    <section class="card" style="margin-top:16px">
+      <h2>Accounts overview</h2>
+      <div class="table-wrap"><table id="overview"></table></div>
+    </section>
+  </div>
+</main>
+
+<div class="savebar hidden" id="savebar">
+  <div class="inner">
+    <span id="message" class="muted"></span>
+    <div class="row">
+      <button type="button" id="reload">Discard changes</button>
+      <button type="button" class="primary" id="save">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const API = "/v0/management";
+  const PLUGIN = "key-router";
+  const STORE = "key-router:management-key";
+  const $ = (id) => document.getElementById(id);
+
+  let mgmtKey = "";
+  let state = null;      // {enabled, debug, users:[{name, keys:[], primary:[], access:[]}], extra:{}}
+  let accounts = [];     // auth files
+  let accessKeys = [];   // access.api-keys
+  let dirty = false;
+  let notice = "";       // shown instead of "Unsaved changes" after a rule migration
+
+  const storage = {
+    get() { try { return localStorage.getItem(STORE) || ""; } catch { return ""; } },
+    set(v) { try { v ? localStorage.setItem(STORE, v) : localStorage.removeItem(STORE); } catch {} },
+  };
+
+  async function api(method, path, body) {
+    const res = await fetch(API + path, {
+      method,
+      headers: { "Authorization": "Bearer " + mgmtKey, ...(body !== undefined ? { "Content-Type": "application/json" } : {}) },
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+    const text = await res.text();
+    let data = null;
+    try { data = text ? JSON.parse(text) : null; } catch { data = text; }
+    if (!res.ok) {
+      const err = new Error((data && (data.message || data.error)) || ("HTTP " + res.status));
+      err.status = res.status;
+      throw err;
+    }
+    return data;
+  }
+
+  const mask = (k) => k.length > 14 ? k.slice(0, 8) + "…" + k.slice(-4) : k;
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const accountLabel = (a) => a.email || a.label || a.account || a.id;
+
+  const providerOf = (a) => (a.provider || a.type || "").toLowerCase();
+  // Mirrors matchesAny in main.go: "provider:e-mail" rules match the provider and the
+  // e-mail inside the auth file name (which survives re-login); other rules are substrings.
+  function ruleMatches(rule, account) {
+    const r = rule.toLowerCase();
+    const id = account.id.toLowerCase();
+    const sep = r.indexOf(":");
+    if (sep >= 0) {
+      if (r.slice(0, sep) !== providerOf(account)) return false;
+      const token = r.slice(sep + 1);
+      for (let at = id.indexOf(token); token && at >= 0; at = id.indexOf(token, at + 1)) {
+        if (at === 0 || !/[a-z0-9._%+]/.test(id[at - 1])) return true;
+      }
+      return false;
+    }
+    return id.includes(r) || (account.note || "").toLowerCase().includes(r);
+  }
+  // The rule the page writes for an account; accounts without an e-mail fall back to the file name.
+  const accountRule = (a) => a.email ? `${providerOf(a)}:${a.email.toLowerCase()}` : a.id;
+  const TIERS = ["primary", "access"];
+  // Primary wins over access, mirroring the plugin.
+  const roleOf = (user, account) => TIERS.find((t) => user[t].some((r) => ruleMatches(r, account))) || "none";
+
+  function accountStatus(a) {
+    if (a.disabled) return ["disabled", "status-warn"];
+    if (a.unavailable) return ["cooldown", "status-warn"];
+    if (a.status && a.status !== "active") return [a.status, "status-err"];
+    return ["active", "status-ok"];
+  }
+
+  function markDirty() {
+    dirty = true;
+    notice = "";
+    renderOverview();
+    validate();
+  }
+
+  function duplicateKeys() {
+    const seen = new Map(), dup = new Set();
+    state.users.forEach((u) => u.keys.forEach((k) => { if (seen.has(k) && seen.get(k) !== u) dup.add(k); seen.set(k, u); }));
+    return dup;
+  }
+
+  function validate() {
+    const dup = duplicateKeys();
+    const names = state.users.map((u) => u.name.trim());
+    let msg = "", cls = "muted";
+    if (dup.size) { msg = "A key is assigned to more than one user: " + [...dup].map(mask).join(", "); cls = "status-err"; }
+    else if (names.some((n) => !n)) { msg = "Every user needs a name."; cls = "status-err"; }
+    else if (dirty) { msg = notice || "Unsaved changes."; cls = "status-warn"; }
+    $("message").textContent = msg;
+    $("message").className = cls;
+    $("save").disabled = !dirty || cls === "status-err";
+    $("savebar").classList.toggle("hidden", !dirty);
+  }
+
+  function generateKey() {
+    const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    const bytes = new Uint8Array(48);
+    crypto.getRandomValues(bytes);
+    // 248 = 4 * 62, so rejecting larger bytes keeps the distribution uniform.
+    return "sk-" + Array.from(bytes).filter((b) => b < 248).map((b) => alphabet[b % 62]).join("").slice(0, 40);
+  }
+
+  function renderUsers() {
+    const host = $("users");
+    host.innerHTML = "";
+    const assigned = new Set(state.users.flatMap((u) => u.keys));
+    state.users.forEach((user, ui) => {
+      const card = document.createElement("section");
+      card.className = "card";
+      const freeKeys = accessKeys.filter((k) => !assigned.has(k));
+      card.innerHTML = `
+        <div class="row spread">
+          <input type="text" class="name" value="${esc(user.name)}" placeholder="User name" data-act="name">
+          <button type="button" class="danger" data-act="remove-user">Remove user</button>
+        </div>
+        <div class="label">Client API keys</div>
+        <div class="row">
+          ${user.keys.map((k, ki) => `<span class="chip" title="${esc(k)}">${esc(mask(k))}${accessKeys.includes(k) ? "" : ' <span class="badge">new</span>'}
+            <button type="button" class="link" data-act="copy-key" data-ki="${ki}" title="Copy">⧉</button>
+            <button type="button" class="link" data-act="remove-key" data-ki="${ki}" title="Remove">✕</button></span>`).join("") || '<span class="muted">No key – this user is never matched.</span>'}
+        </div>
+        <div class="row" style="margin-top:8px">
+          <select data-act="pick-key" ${freeKeys.length ? "" : "disabled"}>
+            <option value="">${freeKeys.length ? "Assign an existing key…" : "No unassigned keys"}</option>
+            ${freeKeys.map((k) => `<option value="${esc(k)}">${esc(mask(k))}</option>`).join("")}
+          </select>
+          <button type="button" data-act="generate-key">Generate new key</button>
+        </div>
+        <div class="label">Accounts</div>
+        <div class="accounts">
+          ${accounts.map((a, ai) => {
+            const role = roleOf(user, a);
+            const [st, stc] = accountStatus(a);
+            const name = `role-${ui}-${ai}`;
+            const seg = [["primary", "Primary"], ["access", "Access"], ["none", "No access"]].map(([v, l]) =>
+              `<label class="${role === v ? "on-" + v : ""}"><input type="radio" name="${name}" value="${v}" data-act="role" data-ai="${ai}" ${role === v ? "checked" : ""}>${l}</label>`).join("");
+            return `<div class="account">
+              <span><span class="email">${esc(accountLabel(a))}</span>
+              <span class="badge">${esc(a.provider || a.type || "?")}</span> <span class="${stc}">${esc(st)}</span></span>
+              <span class="seg">${seg}</span>
+            </div>`;
+          }).join("") || '<span class="muted">No accounts are logged in.</span>'}
+        </div>`;
+      card.addEventListener("input", (e) => {
+        if (e.target.dataset.act === "name") { user.name = e.target.value; markDirty(); }
+      });
+      card.addEventListener("change", (e) => {
+        const act = e.target.dataset.act;
+        if (act === "pick-key" && e.target.value) { user.keys.push(e.target.value); markDirty(); renderUsers(); }
+        if (act === "role") { setRole(user, accounts[+e.target.dataset.ai], e.target.value); markDirty(); renderUsers(); }
+      });
+      card.addEventListener("click", async (e) => {
+        const btn = e.target.closest("button");
+        if (!btn) return;
+        const act = btn.dataset.act;
+        if (act === "remove-user") {
+          if (!confirmInline(btn, "Click again to remove")) return;
+          state.users.splice(ui, 1); markDirty(); renderUsers();
+        } else if (act === "remove-key") { user.keys.splice(+btn.dataset.ki, 1); markDirty(); renderUsers(); }
+        else if (act === "copy-key") {
+          try { await navigator.clipboard.writeText(user.keys[+btn.dataset.ki]); btn.textContent = "✓"; setTimeout(() => (btn.textContent = "⧉"), 1200); } catch {}
+        } else if (act === "generate-key") { user.keys.push(generateKey()); markDirty(); renderUsers(); }
+      });
+      host.appendChild(card);
+    });
+  }
+
+  // Two-step confirmation without browser dialogs.
+  function confirmInline(btn, text) {
+    if (btn.dataset.armed) return true;
+    const orig = btn.textContent;
+    btn.dataset.armed = "1"; btn.textContent = text;
+    setTimeout(() => { delete btn.dataset.armed; btn.textContent = orig; }, 3000);
+    return false;
+  }
+
+  // Drop every rule in a tier that matches the account, keeping the other accounts
+  // those rules covered as exact-ID rules.
+  function detach(user, tier, account) {
+    const keep = new Set();
+    user[tier] = user[tier].filter((r) => {
+      if (!ruleMatches(r, account)) return true;
+      accounts.forEach((a) => { if (a !== account && ruleMatches(r, a)) keep.add(a); });
+      return false;
+    });
+    keep.forEach((a) => { if (!user[tier].some((r) => ruleMatches(r, a))) user[tier].push(accountRule(a)); });
+  }
+
+  function setRole(user, account, role) {
+    TIERS.forEach((tier) => { if (tier !== role) detach(user, tier, account); });
+    if (role !== "none" && !user[role].some((r) => ruleMatches(r, account))) user[role].push(accountRule(account));
+  }
+
+  function renderOverview() {
+    const head = `<tr><th>Account</th><th>Provider</th><th>Status</th>${state.users.map((u) => `<th>${esc(u.name || "?")}</th>`).join("")}</tr>`;
+    const rows = accounts.map((a) => {
+      const [st, stc] = accountStatus(a);
+      const cells = state.users.map((u) => {
+        const role = roleOf(u, a);
+        return `<td class="role-${role}">${role === "primary" ? "Primary" : role === "access" ? "Access" : '<span class="muted">–</span>'}</td>`;
+      }).join("");
+      return `<tr><td>${esc(accountLabel(a))}<br><span class="muted" style="font-size:12px">${esc(a.id)}</span></td>
+        <td><span class="badge">${esc(a.provider || a.type || "?")}</span></td><td class="${stc}">${esc(st)}</td>${cells}</tr>`;
+    });
+    $("overview").innerHTML = head + (rows.join("") || `<tr><td colspan="${3 + state.users.length}" class="muted">No accounts.</td></tr>`);
+  }
+
+  function render() {
+    $("enabled").checked = state.enabled;
+    $("debug").checked = state.debug;
+    renderUsers();
+    renderOverview();
+    validate();
+  }
+
+  // Rewrites older rules (substrings, file names) to one "provider:e-mail" rule per
+  // matched account, so roles are per provider and survive re-login.
+  function migrateRules() {
+    let changed = 0, dropped = 0;
+    state.users.forEach((user) => {
+      TIERS.forEach((tier) => {
+        const next = [];
+        user[tier].forEach((rule) => {
+          const matched = accounts.filter((a) => ruleMatches(rule, a));
+          const converted = matched.map(accountRule);
+          if (converted.length === 1 && converted[0] === rule.toLowerCase()) { if (!next.includes(converted[0])) next.push(converted[0]); return; }
+          if (!matched.length) { dropped++; return; }
+          changed++;
+          converted.forEach((r) => { if (!next.includes(r)) next.push(r); });
+        });
+        user[tier] = next;
+      });
+    });
+    if (!changed && !dropped) return "";
+    return `Converted ${changed} older rule(s) to per-account rules` + (dropped ? `, dropped ${dropped} that match no logged-in account` : "") + ". Review and save.";
+  }
+
+  async function load() {
+    const [cfg, keys, files] = await Promise.all([
+      api("GET", `/plugins/${PLUGIN}/config`),
+      api("GET", "/api-keys"),
+      api("GET", "/auth-files"),
+    ]);
+    const { enabled = true, debug = false, users = [], ...extra } = cfg || {};
+    state = {
+      enabled: enabled !== false, debug: !!debug, extra,
+      users: (users || []).map((u) => {
+        const legacy = !u.primary && !u.access;
+        return { name: u.name || "", keys: [...(u["api-keys"] || [])], primary: [...(legacy ? u.auths || [] : u.primary || [])], access: [...(u.access || [])] };
+      }),
+    };
+    accessKeys = (keys && keys["api-keys"]) || [];
+    accounts = ((files && files.files) || []).slice().sort((a, b) => (a.provider || "").localeCompare(b.provider || "") || accountLabel(a).localeCompare(accountLabel(b)));
+    notice = migrateRules();
+    dirty = !!notice;
+    render();
+  }
+
+  async function save() {
+    $("save").disabled = true;
+    $("message").textContent = "Saving…"; $("message").className = "muted";
+    try {
+      const newKeys = state.users.flatMap((u) => u.keys).filter((k) => !accessKeys.includes(k));
+      if (newKeys.length) {
+        const latest = (await api("GET", "/api-keys"))["api-keys"] || [];
+        await api("PUT", "/api-keys", [...latest, ...newKeys.filter((k) => !latest.includes(k))]);
+      }
+      await api("PUT", `/plugins/${PLUGIN}/config`, {
+        ...state.extra,
+        enabled: state.enabled,
+        debug: state.debug,
+        users: state.users.map((u) => ({ name: u.name.trim(), "api-keys": u.keys, primary: u.primary, access: u.access })),
+      });
+      await load();
+      $("message").textContent = "Saved. The plugin reloads its configuration automatically.";
+      $("message").className = "status-ok";
+      $("savebar").classList.remove("hidden");
+      setTimeout(() => { if (!dirty) $("savebar").classList.add("hidden"); }, 4000);
+    } catch (err) {
+      $("message").textContent = "Save failed: " + err.message;
+      $("message").className = "status-err";
+      $("save").disabled = false;
+    }
+  }
+
+  async function connect(key) {
+    mgmtKey = key;
+    $("loginError").textContent = "";
+    try {
+      // CLIProxyAPI bans an IP for 30 minutes after 5 failed management requests,
+      // so verify the key with a single request before loading in parallel.
+      await api("GET", "/api-keys");
+      await load();
+      storage.set(key);
+      $("login").classList.add("hidden");
+      $("app").classList.remove("hidden");
+    } catch (err) {
+      $("app").classList.add("hidden");
+      $("login").classList.remove("hidden");
+      $("loginError").textContent = err.status === 401 ? "Invalid management key. Note: 5 failed attempts block this IP for 30 minutes."
+        : err.status === 403 ? err.message : "Connection failed: " + err.message;
+      $("loginError").className = "status-err";
+      if (err.status === 401 || err.status === 403) storage.set("");
+    }
+  }
+
+  $("loginForm").addEventListener("submit", (e) => { e.preventDefault(); const k = $("mgmtKey").value.trim(); if (k) connect(k); });
+  $("logout").addEventListener("click", () => { storage.set(""); mgmtKey = ""; $("app").classList.add("hidden"); $("savebar").classList.add("hidden"); $("login").classList.remove("hidden"); });
+  $("enabled").addEventListener("change", (e) => { state.enabled = e.target.checked; markDirty(); });
+  $("debug").addEventListener("change", (e) => { state.debug = e.target.checked; markDirty(); });
+  $("addUser").addEventListener("click", () => { state.users.push({ name: "", keys: [], primary: [], access: [] }); markDirty(); renderUsers(); });
+  $("save").addEventListener("click", save);
+  $("reload").addEventListener("click", () => load().catch((err) => { $("message").textContent = err.message; }));
+
+  const saved = storage.get();
+  if (saved) connect(saved);
+})();
+</script>
+</body>
+</html>

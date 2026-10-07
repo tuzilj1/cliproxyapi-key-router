@@ -1,0 +1,12 @@
+# Build output
+out/
+*.so
+*.h
+
+# CLIProxyAPI source checkout used by build.sh (sibling directory by default)
+CLIProxyAPI/
+
+# Local helper unrelated to the plugin
+cpa-login-tunnel.py
+
+.DS_Store
