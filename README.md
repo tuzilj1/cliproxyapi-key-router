@@ -1,6 +1,6 @@
 # key-router – CLIProxyAPI plugin
 
-A plugin for [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) (v8) that picks the upstream account (Claude, Codex, Antigravity, Gemini…) based on the **client API key**. It is meant for a proxy shared by several people: everyone uses their own subscription first and only falls back to accounts other people have shared with them once their own limits run out.
+A plugin for [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) (v8) that picks the upstream account (Claude, Codex, Antigravity, Gemini…) based on the **client API key**. It is meant for a proxy used by several people with their own client keys. Each user has a set of primary accounts that are used first and a set of fallback accounts that are used only when the primary ones are unavailable. The administrator assigns these sets per user in the configuration; accounts that are not assigned to a user are never used for that user.
 
 It also ships a **configuration page** inside the CLIProxyAPI management panel.
 
@@ -11,7 +11,7 @@ Each user has one or more client keys (from `access.api-keys`) and one of three 
 | Role | Behaviour |
 |---|---|
 | **Primary** | Used first. With several primary accounts, the higher `priority` wins, then the auth ID in alphabetical order. |
-| **Access** | Used only when no primary account is available (quota exhausted / cooldown, error, disabled account). |
+| **Access** (fallback) | Used only when no primary account is available (quota exhausted / cooldown, error, disabled account). The configuration key is still `access`. |
 | **No access** | Never used for this user. |
 
 When neither a primary nor an access account is available, the plugin rejects the request with

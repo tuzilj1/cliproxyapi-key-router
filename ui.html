@@ -69,7 +69,7 @@ th { font-size: 12px; color: var(--muted); font-weight: 500; }
 <body>
 <main>
   <h1>Key router</h1>
-  <p class="lead">Each user's requests use their <b>primary</b> accounts first. When no primary account is available (quota exhausted, cooling down, error, disabled), the accounts the user has <b>access</b> to are used. Other accounts are never used for that user; if nothing allowed is available, the request fails.</p>
+  <p class="lead">Each user's requests use their <b>primary</b> accounts first. When no primary account is available (quota exhausted, cooling down, error, disabled), the <b>fallback</b> accounts assigned to the user (role Access) are used. Other accounts are never used for that user; if nothing allowed is available, the request fails.</p>
 
   <section class="card" id="login">
     <h2>Management key</h2>

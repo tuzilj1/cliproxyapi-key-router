@@ -1,8 +1,9 @@
 // Package main implements a CLIProxyAPI scheduler plugin that routes each
 // request by the caller's client API key. Every user has primary accounts and
-// accounts they may access. Primary accounts are used first; when none of them
-// is available (quota cooldown, error, disabled), the access accounts are used.
-// Other accounts are never used for that user: the pick is rejected instead.
+// fallback accounts (configured as access) assigned to them. Primary accounts
+// are used first; when none of them is available (quota cooldown, error,
+// disabled), the fallback accounts are used. Other accounts are never used for
+// that user: the pick is rejected instead.
 package main
 
 /*
