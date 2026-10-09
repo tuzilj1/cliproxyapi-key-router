@@ -58,7 +58,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-const pluginVersion = "0.4.0"
+const pluginVersion = "0.4.1"
 
 // configUIPath is the resource path shown as a menu page in the management panel,
 // served at /v0/resource/plugins/key-router/config.
