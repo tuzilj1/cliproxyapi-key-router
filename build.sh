@@ -11,7 +11,7 @@ set -e
 REPO=$(cd "$(dirname "$0")" && pwd)
 PARENT=$(dirname "$REPO")
 NAME=$(basename "$REPO")
-CPA_VERSION=${CPA_VERSION:-v8.0.17}
+CPA_VERSION=${CPA_VERSION:-v8.0.38}
 
 CMD='go mod tidy && go build -buildmode=c-shared -trimpath -ldflags="-s -w" -o out/key-router.so . && rm -f out/key-router.h'
 [ "$1" = "test" ] && CMD="go mod tidy && go vet ./... && go test -count=1 ./... && $CMD"
