@@ -189,6 +189,29 @@ func TestProviderScopedRules(t *testing.T) {
 	}
 }
 
+func TestClaudeAPIKeyRules(t *testing.T) {
+	raw, _ := json.Marshal(lifecycleRequest{ConfigYAML: []byte("users:\n  - {name: a, api-keys: [k], primary: [\"claude:a@x.cz\"], access: [\"claude:apikey:9079a68f22fc\"]}\n  - {name: b, api-keys: [k2], primary: [\"claude:apikey:9079a68f22fc-1\"]}\n")})
+	if err := configure(raw); err != nil {
+		t.Fatal(err)
+	}
+	oauth := pluginapi.SchedulerAuthCandidate{ID: "claude-1234abcd-a@x.cz.json", Provider: "claude"}
+	key := pluginapi.SchedulerAuthCandidate{ID: "claude:apikey:9079a68f22fc", Provider: "claude"}
+	dupKey := pluginapi.SchedulerAuthCandidate{ID: "claude:apikey:9079a68f22fc-1", Provider: "claude"}
+	otherKey := pluginapi.SchedulerAuthCandidate{ID: "claude:apikey:0123456789ab", Provider: "claude"}
+	if got := pick(t, scope("k"), key, oauth); got.AuthID != oauth.ID {
+		t.Fatalf("subscription must win over API key fallback: got %+v", got)
+	}
+	if got := pick(t, scope("k"), otherKey, key); got.AuthID != key.ID {
+		t.Fatalf("assigned API key must be used when subscription is unavailable: got %+v", got)
+	}
+	if got := pick(t, scope("k"), otherKey); !got.Reject {
+		t.Fatalf("unassigned API key must be rejected: got %+v", got)
+	}
+	if got := pick(t, scope("k2"), key, dupKey); got.AuthID != dupKey.ID {
+		t.Fatalf("suffixed API key ID: got %+v", got)
+	}
+}
+
 func TestRegistrationMetadataComplete(t *testing.T) {
 	meta := pluginRegistration().Metadata
 	if meta.Name == "" || meta.Version == "" || meta.Author == "" || meta.GitHubRepository == "" {

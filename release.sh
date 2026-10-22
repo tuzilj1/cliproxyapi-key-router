@@ -14,7 +14,7 @@ REPO=$(cd "$(dirname "$0")" && pwd)
 PARENT=$(dirname "$REPO")
 NAME=$(basename "$REPO")
 ID=key-router
-CPA_VERSION=${CPA_VERSION:-v8.0.17}
+CPA_VERSION=${CPA_VERSION:-v8.0.38}
 VERSION=$(sed -n 's/^const pluginVersion = "\(.*\)"/\1/p' "$REPO/main.go")
 [ -n "$VERSION" ] || { echo "pluginVersion not found in main.go" >&2; exit 1; }
 

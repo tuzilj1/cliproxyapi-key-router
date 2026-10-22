@@ -36,6 +36,12 @@ The configuration page stores a `provider:e-mail` rule for each account, e.g. `c
 
 A rule without a colon is a substring of the auth file name or of the account `note` (the older format). The page converts such rules to per-account rules when it loads.
 
+### Claude API keys
+
+Claude API keys from `api-keys.claude` are accounts too, so a user can be routed to a subscription, to an API key, or to a subscription with an API key as fallback. CLIProxyAPI gives each key the auth ID `claude:apikey:<12 hex>` (a SHA-256 of the key, `base-url`, `proxy-url`, `prefix` and `headers`; identical entries get a `-1`, `-2`… suffix). The configuration page computes the same ID and lists every key as `API key sk-ant-…abcd`; its rule is the ID itself, e.g. `claude:apikey:9079a68f22fc`.
+
+Changing the key, `base-url`, `proxy-url`, `prefix` or `headers` changes the ID. The old rule then matches nothing, the page drops it on the next load, and the key has to be assigned again. The rule `claude:apikey` (written by hand) matches every Claude API key.
+
 ## Configuration page
 
 The plugin adds a **Key router** menu item to the management panel. The page is served at `/v0/resource/plugins/key-router/config`, and its source, `ui.html`, is embedded in the `.so`. On the page you can:
@@ -57,7 +63,7 @@ A newly logged-in account has "No access" for every user until you assign it a r
 1. **Build** (requires Docker; produces `out/key-router.so` for linux/amd64):
 
    ```sh
-   CPA_VERSION=v8.0.17 ./build.sh test
+   CPA_VERSION=v8.0.38 ./build.sh test
    ```
 
    `build.sh` compiles against the CLIProxyAPI source in the sibling directory `../CLIProxyAPI` (see the `replace` directive in `go.mod`). If the directory is missing, it clones the `CPA_VERSION` tag there. The version must match the CLIProxyAPI you run. The build runs in `golang:1.26-bookworm`, so it links against the same glibc as the official image (`debian:bookworm`).
@@ -90,7 +96,7 @@ A newly logged-in account has "No access" for every user until you assign it a r
 
 ## Compatibility
 
-- Built and tested against CLIProxyAPI **v8.0.17** (plugin ABI 1, RPC schema 6).
+- Built and tested against CLIProxyAPI **v8.0.38** (plugin ABI 1, RPC schema 6).
 - The official image uses `pull_policy: always`, so it may update on restart. After an update, check that the plugin still loads. If `pluginabi.ABIVersion` or `SchemaVersion` changes, rebuild against the new version: delete `../CLIProxyAPI`, then run `CPA_VERSION=… ./build.sh`.
 - Configuration in the v0.2 format (only `auths`, without `primary`/`access`) still works: `auths` act as primary accounts, otherwise the built-in routing applies.
 
